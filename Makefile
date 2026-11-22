@@ -1,4 +1,4 @@
-.PHONY: setup setup-local data eda-a evaluate predict monitor select tune tune-tabpfn lint format test check
+.PHONY: setup setup-local data eda-a evaluate predict release monitor select tune tune-tabpfn lint format test check
 
 # Renku: run once per session (pip installs don't survive a shutdown).
 # --no-deps so pip never replaces the conda packages from environment.yml.
@@ -27,6 +27,10 @@ evaluate:
 # (never submits; submitting is brpmm.submission.submit)
 predict:
 	python -m brpmm.predict
+
+# Batch-release assistant (industry use): one action per test batch + cut-off cost table
+release:
+	python -m brpmm.release
 
 # Accepted-only monitoring (the brief's second solution) -> outputs/<time>_monitor.csv/.json
 monitor:

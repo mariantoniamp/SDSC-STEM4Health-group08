@@ -12,6 +12,7 @@ make data           # stage challenge data into data/raw (once per machine)
 cp .env.example .env  # add leaderboard team name / token
 make check          # ruff + pytest
 make predict        # LEADERBOARD FILE (python -m brpmm.predict) -> outputs/<time>_A-ensemble_B-pca_NOT-SUBMITTED.csv
+make release        # INDUSTRY USE (python -m brpmm.release) -> one action per test batch + cut-off cost table
 make monitor        # accepted-only solution (round 2) -> outputs/<time>_monitor.csv + .json
 make evaluate       # every method on the shared CV protocol -> findings report
 make select         # evidence for the A model (~2 min) -> outputs/process_A/final_selection.json
@@ -51,6 +52,7 @@ src/brpmm/        reusable code
   evaluate.py       the shared CV protocol (seeds 42+r, 5x5 folds, inner 3-fold cut-off)
   metrics.py        leaderboard F1 on label strings (accepted = positive)
   predict.py        final models on all calibration data -> submission + per-batch details
+  release.py        batch-release assistant: action per batch, flags, reasons, early warning
   report.py         findings report
   -- accepted-only monitoring, analysis and evidence --
   prepare.py        stage raw data into data/raw
@@ -73,6 +75,27 @@ data/             gitignored: raw/ (staged challenge data), processed/ (feature 
 outputs/          gitignored; reports, figures, timestamped submissions
 challenge_docs/   gitignored; local copy of the brief + data (not shared via git)
 ```
+
+## Batch-release assistant (industry use)
+
+`python -m brpmm.release` (or `make release`, ~30 s) turns the leaderboard models into a decision-support
+report. It adds no new model: it reuses `predict.py` (process A ensemble) and `process_b.py` (process B rule
+and monitor). Each test batch gets **one action: release to QC, expert review or investigate**. The action
+never changes the leaderboard label; it tells people where to look.
+
+| Proposal | What it does | Evidence (cross-validation, process A) |
+|---|---|---|
+| Traffic light | green = the 3 ensemble members accept, red = all reject, amber = they disagree → expert review | amber = 22 % of batches, 45 % of all errors |
+| Reasons | top 3 features furthest from accepted batches, per batch | temperature_1, density, temperature_4 decide most cases |
+| Single-sample check | J&J: "one bad sample rejects the batch". Each sample vs the accepted range **for its moment of the batch** (per batch type, 2 % of progress); a green batch above the accepted 90th percentile is escalated to review | separates good from bad with AUC 0.83 |
+| Early warning | the same ensemble on the first third of each batch | 26 / 40 bad batches flagged, no extra false alarms |
+| Cut-off cost table | expected good batches thrown away vs bad let through for cut-off shifts; QA picks the row (`--cutoff-shift`) | F1 counts both errors equally, a plant may not |
+| Process B review flags | rule rejects the aeration fault; batches started outside the calibrated range are flagged for review, not rejected | 5 / 5 faults, 0 false alarms |
+
+Outputs (in `outputs/`, timestamped): `_release_report.csv` (one row per test batch), `_operating_points.csv`,
+`_release_summary.md`. The report also states where the score stops: about 7 rejected calibration batches
+look normal on all 11 sensors (see `docs/model_results.md`), so the next gain is data (lab results, recipe),
+not models.
 
 ## Conventions
 
